@@ -1,0 +1,95 @@
+// ============================================================================
+// OTel Counter Demo — Sample KQL Queries for VNet Flow Event Metrics
+// ============================================================================
+// These queries run against the customMetrics table in Application Insights.
+// The counter "vnet.flow.events" is exported by the Azure Monitor OTel exporter.
+// Each metric record includes dimensional tags in customDimensions:
+//   - flow.direction: inbound | outbound
+//   - flow.action:    allow | deny
+//   - flow.protocol:  TCP | UDP
+// ============================================================================
+
+// ---------------------------------------------------------------------------
+// 1. Total flow events in a specific time range
+//    Answer: "How many VNet flow events happened between t1 and t2?"
+//    Replace the datetime values with your desired range.
+// ---------------------------------------------------------------------------
+customMetrics
+| where name == "vnet.flow.events"
+| where timestamp between (datetime(2026-03-05T17:00:00Z) .. datetime(2026-03-05T18:00:00Z))
+| summarize TotalFlowEvents = sum(value)
+
+// ---------------------------------------------------------------------------
+// 2. Flow events per 5-minute bucket
+//    Answer: "What does the flow event volume look like over time?"
+//    Great for spotting traffic spikes or quiet periods.
+// ---------------------------------------------------------------------------
+customMetrics
+| where name == "vnet.flow.events"
+| where timestamp > ago(1h)
+| summarize FlowEvents = sum(value) by bin(timestamp, 5m)
+| order by timestamp asc
+| render timechart
+
+// ---------------------------------------------------------------------------
+// 3. Flow events by direction (inbound vs outbound)
+//    Answer: "Is there more inbound or outbound traffic?"
+// ---------------------------------------------------------------------------
+customMetrics
+| where name == "vnet.flow.events"
+| where timestamp > ago(1h)
+| extend Direction = tostring(customDimensions["flow.direction"])
+| summarize FlowEvents = sum(value) by Direction
+| order by FlowEvents desc
+| render piechart
+
+// ---------------------------------------------------------------------------
+// 4. Flow events by action (allow vs deny)
+//    Answer: "How many flows were allowed vs denied?"
+// ---------------------------------------------------------------------------
+customMetrics
+| where name == "vnet.flow.events"
+| where timestamp > ago(1h)
+| extend Action = tostring(customDimensions["flow.action"])
+| summarize FlowEvents = sum(value) by Action
+| order by FlowEvents desc
+| render piechart
+
+// ---------------------------------------------------------------------------
+// 5. Denied flows over time
+//    Answer: "When are denied flows spiking?"
+//    Useful for detecting potential security events or misconfigurations.
+// ---------------------------------------------------------------------------
+customMetrics
+| where name == "vnet.flow.events"
+| where timestamp > ago(4h)
+| extend Action = tostring(customDimensions["flow.action"])
+| where Action == "deny"
+| summarize DeniedFlows = sum(value) by bin(timestamp, 5m)
+| order by timestamp asc
+| render timechart
+
+// ---------------------------------------------------------------------------
+// 6. Flow events by protocol (TCP vs UDP)
+//    Answer: "What is the protocol distribution of network flows?"
+// ---------------------------------------------------------------------------
+customMetrics
+| where name == "vnet.flow.events"
+| where timestamp > ago(1h)
+| extend Protocol = tostring(customDimensions["flow.protocol"])
+| summarize FlowEvents = sum(value) by Protocol
+| order by FlowEvents desc
+| render barchart
+
+// ---------------------------------------------------------------------------
+// 7. Cross-dimensional breakdown: Direction × Action
+//    Answer: "How do allow/deny counts compare for inbound vs outbound?"
+//    Produces a matrix-style view.
+// ---------------------------------------------------------------------------
+customMetrics
+| where name == "vnet.flow.events"
+| where timestamp > ago(1h)
+| extend Direction = tostring(customDimensions["flow.direction"]),
+         Action = tostring(customDimensions["flow.action"])
+| summarize FlowEvents = sum(value) by Direction, Action
+| order by Direction asc, Action asc

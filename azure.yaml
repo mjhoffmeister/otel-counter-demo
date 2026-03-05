@@ -1,0 +1,11 @@
+name: otel-counter-demo
+metadata:
+  template: otel-counter-demo
+infra:
+  provider: terraform
+  path: infra
+services:
+  func:
+    project: src/OtelCounterDemo
+    host: function
+    language: dotnet
